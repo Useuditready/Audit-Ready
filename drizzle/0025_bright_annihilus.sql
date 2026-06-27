@@ -1,0 +1,1 @@
+ALTER TABLE `users` ADD `tourCompleted` boolean DEFAULT false;

@@ -1,0 +1,404 @@
+import { useAuth } from "@/_core/hooks/useAuth";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarFooter,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarGroupLabel,
+  SidebarHeader,
+  SidebarInset,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarProvider,
+  SidebarTrigger,
+  useSidebar,
+} from "@/components/ui/sidebar";
+import { trpc } from "@/lib/trpc";
+import { getLoginUrl } from "@/const";
+import { useIsMobile } from "@/hooks/useMobile";
+import { LayoutDashboard, LogOut, PanelLeft, Users, FileText, ShieldCheck, BarChart2, Upload, Clock, Settings, CreditCard, Bell, ClipboardList, UserCheck, BookOpen, Award, Activity, Shield } from "lucide-react";
+import { CSSProperties, useEffect, useRef, useState } from "react";
+import { useLocation } from "wouter";
+import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
+import { Button } from "./ui/button";
+
+const menuGroups = [
+  {
+    label: "Credential Management",
+    items: [
+      { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard" },
+      { icon: Users, label: "Staff", path: "/staff" },
+      { icon: FileText, label: "Credentials", path: "/credentials" },
+      { icon: Clock, label: "Pending Review", path: "/pending-review" },
+      { icon: ShieldCheck, label: "Verification Checks", path: "/verification-checks" },
+    ],
+  },
+  {
+    label: "ABA Compliance",
+    items: [
+      { icon: Award, label: "BACB Certifications", path: "/bacb-certifications" },
+      { icon: Activity, label: "Supervision Ratios", path: "/supervision-ratios" },
+      { icon: Shield, label: "OIG Exclusion Checks", path: "/oig-exclusion-checks" },
+      { icon: ClipboardList, label: "New-Hire Checklist", path: "/onboarding-checklist" },
+    ],
+  },
+  {
+    label: "Credentialing",
+    items: [
+      { icon: UserCheck, label: "Provider Credentialing", path: "/credentialing" },
+    ],
+  },
+  {
+    label: "Reports & Data",
+    items: [
+      { icon: BarChart2, label: "Reports", path: "/reports" },
+      { icon: ClipboardList, label: "Note Compliance", path: "/notes" },
+      { icon: Upload, label: "Import History", path: "/imports" },
+      { icon: BookOpen, label: "Credential Checklist Guide", path: "/onboarding" },
+    ],
+  },
+  {
+    label: "Account",
+    items: [
+      { icon: CreditCard, label: "Billing", path: "/billing" },
+      { icon: Settings, label: "Settings", path: "/settings" },
+    ],
+  },
+];
+
+// Flat list for active item detection
+const menuItems = menuGroups.flatMap(g => g.items);
+
+const SIDEBAR_WIDTH_KEY = "sidebar-width";
+const DEFAULT_WIDTH = 280;
+const MIN_WIDTH = 220;
+const MAX_WIDTH = 480;
+
+export default function DashboardLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  const [sidebarWidth, setSidebarWidth] = useState(() => {
+    const saved = localStorage.getItem(SIDEBAR_WIDTH_KEY);
+    return saved ? parseInt(saved, 10) : DEFAULT_WIDTH;
+  });
+  const { loading, user } = useAuth();
+
+  useEffect(() => {
+    localStorage.setItem(SIDEBAR_WIDTH_KEY, sidebarWidth.toString());
+  }, [sidebarWidth]);
+
+  if (loading) {
+    return <DashboardLayoutSkeleton />
+  }
+
+  if (!user) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="flex flex-col items-center gap-8 p-8 max-w-md w-full">
+          <div className="flex flex-col items-center gap-6">
+            <h1 className="text-2xl font-semibold tracking-tight text-center">
+              Sign in to continue
+            </h1>
+            <p className="text-sm text-muted-foreground text-center max-w-sm">
+              Access to this dashboard requires authentication. Continue to launch the login flow.
+            </p>
+          </div>
+          <Button
+            onClick={() => {
+              window.location.href = getLoginUrl();
+            }}
+            size="lg"
+            className="w-full shadow-lg hover:shadow-xl transition-all"
+          >
+            Sign in
+          </Button>
+          <p className="text-xs text-muted-foreground text-center max-w-sm leading-relaxed">
+            By signing in you agree to AuditReady's{" "}
+            <a href="/terms" className="underline hover:text-foreground transition-colors">Terms of Service</a>{" "}
+            and{" "}
+            <a href="/privacy" className="underline hover:text-foreground transition-colors">Privacy Policy</a>.
+            AuditReady does not collect patient health information.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <SidebarProvider
+      style={
+        {
+          "--sidebar-width": `${sidebarWidth}px`,
+        } as CSSProperties
+      }
+    >
+      <DashboardLayoutContent setSidebarWidth={setSidebarWidth}>
+        {children}
+      </DashboardLayoutContent>
+    </SidebarProvider>
+  );
+}
+
+type DashboardLayoutContentProps = {
+  children: React.ReactNode;
+  setSidebarWidth: (width: number) => void;
+};
+
+function DashboardLayoutContent({
+  children,
+  setSidebarWidth,
+}: DashboardLayoutContentProps) {
+  const { user, logout, isAuthenticated } = useAuth();
+  const [location, setLocation] = useLocation();
+  const { state, toggleSidebar } = useSidebar();
+  const isCollapsed = state === "collapsed";
+  const [isResizing, setIsResizing] = useState(false);
+  const sidebarRef = useRef<HTMLDivElement>(null);
+  const activeMenuItem = menuItems.find(item => item.path === location);
+  const isMobile = useIsMobile();
+
+  // Fetch billing status for sidebar badges — lightweight, cached, no blocking
+  const { data: billingStatus } = trpc.billing.getSubscriptionStatus.useQuery(
+    undefined,
+    { enabled: isAuthenticated, refetchOnWindowFocus: false, staleTime: 5 * 60 * 1000 }
+  );
+  const isCancellationScheduled = billingStatus?.cancelAtPeriodEnd === true;
+  const isPaymentFailed = billingStatus?.stripeStatus === "past_due" || billingStatus?.stripeStatus === "unpaid";
+
+  // Fetch expiring credentials count for Credentials nav badge (30-day window)
+  const { data: expiring30 } = trpc.dashboard.expiring.useQuery(
+    { days: 30 },
+    { enabled: isAuthenticated, refetchOnWindowFocus: false, staleTime: 5 * 60 * 1000 }
+  );
+  const expiring30Count = expiring30?.length ?? 0;
+
+  useEffect(() => {
+    if (isCollapsed) {
+      setIsResizing(false);
+    }
+  }, [isCollapsed]);
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isResizing) return;
+
+      const sidebarLeft = sidebarRef.current?.getBoundingClientRect().left ?? 0;
+      const newWidth = e.clientX - sidebarLeft;
+      if (newWidth >= MIN_WIDTH && newWidth <= MAX_WIDTH) {
+        setSidebarWidth(newWidth);
+      }
+    };
+
+    const handleMouseUp = () => {
+      setIsResizing(false);
+    };
+
+    if (isResizing) {
+      document.addEventListener("mousemove", handleMouseMove);
+      document.addEventListener("mouseup", handleMouseUp);
+      document.body.style.cursor = "col-resize";
+      document.body.style.userSelect = "none";
+    }
+
+    return () => {
+      document.removeEventListener("mousemove", handleMouseMove);
+      document.removeEventListener("mouseup", handleMouseUp);
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    };
+  }, [isResizing, setSidebarWidth]);
+
+  return (
+    <>
+      <div className="relative" ref={sidebarRef}>
+        <Sidebar
+          collapsible="icon"
+          className="border-r-0"
+          disableTransition={isResizing}
+        >
+          <SidebarHeader className="h-16 justify-center">
+            <div className="flex items-center gap-3 px-2 transition-all w-full">
+              <button
+                onClick={toggleSidebar}
+                className="h-8 w-8 flex items-center justify-center hover:bg-accent rounded-lg transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring shrink-0"
+                aria-label="Toggle navigation"
+              >
+                <PanelLeft className="h-4 w-4 text-muted-foreground" />
+              </button>
+              {!isCollapsed ? (
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="font-semibold tracking-tight truncate">
+                    Navigation
+                  </span>
+                </div>
+              ) : null}
+            </div>
+          </SidebarHeader>
+
+          <SidebarContent className="gap-0 overflow-y-auto">
+            {menuGroups.map(group => (
+              <SidebarGroup key={group.label} className="py-1">
+                {!isCollapsed && (
+                  <SidebarGroupLabel className="px-3 text-[0.6rem] font-semibold uppercase tracking-widest text-muted-foreground/60 mb-0.5">
+                    {group.label}
+                  </SidebarGroupLabel>
+                )}
+                <SidebarGroupContent>
+                  <SidebarMenu className="px-2">
+                    {group.items.map(item => {
+                      const isActive = location === item.path || location.startsWith(item.path + "/");
+                      const isBillingItem = item.path === "/billing";
+                      const isCredentialsItem = item.path === "/credentials";
+                      const isVerificationItem = item.path === "/verification-checks";
+                      const showCancelBadge = isBillingItem && isCancellationScheduled && !isPaymentFailed;
+                      const showPaymentBadge = isBillingItem && isPaymentFailed;
+                      const showExpiringBadge = isCredentialsItem && expiring30Count > 0;
+                      const showVerificationExpiringBadge = isVerificationItem && expiring30Count > 0;
+                      return (
+                        <SidebarMenuItem key={item.label}>
+                          <SidebarMenuButton
+                            isActive={isActive}
+                            onClick={() => setLocation(item.path)}
+                            tooltip={showPaymentBadge ? "Billing — Payment failed" : showCancelBadge ? "Billing — Cancellation scheduled" : item.label}
+                            className="h-9 transition-all font-normal"
+                          >
+                            <item.icon className={`h-4 w-4 ${isActive ? "text-primary" : ""}`} />
+                            <span className="truncate flex-1">{item.label}</span>
+                            {showExpiringBadge && !isCollapsed && (
+                              <span
+                                className="ml-auto shrink-0 text-[0.6rem] font-bold px-1.5 py-0.5 rounded-full"
+                                style={{ background: "#FEF3C7", color: "#92400E", lineHeight: 1.4, minWidth: 18, textAlign: "center" }}
+                              >
+                                {expiring30Count}
+                              </span>
+                            )}
+                            {showExpiringBadge && isCollapsed && (
+                              <span
+                                className="absolute top-1 right-1 h-2 w-2 rounded-full bg-amber-400"
+                                style={{ display: "block" }}
+                              />
+                            )}
+                            {showVerificationExpiringBadge && !isCollapsed && (
+                              <span
+                                className="ml-auto shrink-0 text-[0.6rem] font-bold px-1.5 py-0.5 rounded-full"
+                                style={{ background: "#FEF3C7", color: "#92400E", lineHeight: 1.4, minWidth: 18, textAlign: "center" }}
+                              >
+                                {expiring30Count}
+                              </span>
+                            )}
+                            {showVerificationExpiringBadge && isCollapsed && (
+                              <span
+                                className="absolute top-1 right-1 h-2 w-2 rounded-full bg-amber-400"
+                                style={{ display: "block" }}
+                              />
+                            )}
+                            {showPaymentBadge && !isCollapsed && (
+                              <span
+                                className="ml-auto shrink-0 text-[0.6rem] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-full"
+                                style={{ background: "#FEE2E2", color: "#B91C1C", lineHeight: 1.4 }}
+                              >
+                                Failed
+                              </span>
+                            )}
+                            {showPaymentBadge && isCollapsed && (
+                              <span
+                                className="absolute top-1 right-1 h-2 w-2 rounded-full bg-red-500"
+                                style={{ display: "block" }}
+                              />
+                            )}
+                            {showCancelBadge && !isCollapsed && (
+                              <span
+                                className="ml-auto shrink-0 text-[0.6rem] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-full"
+                                style={{ background: "#FEF3C7", color: "#92400E", lineHeight: 1.4 }}
+                              >
+                                Ending
+                              </span>
+                            )}
+                            {showCancelBadge && isCollapsed && (
+                              <span
+                                className="absolute top-1 right-1 h-2 w-2 rounded-full bg-amber-400"
+                                style={{ display: "block" }}
+                              />
+                            )}
+                          </SidebarMenuButton>
+                        </SidebarMenuItem>
+                      );
+                    })}
+                  </SidebarMenu>
+                </SidebarGroupContent>
+              </SidebarGroup>
+            ))}
+          </SidebarContent>
+
+          <SidebarFooter className="p-3">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button className="flex items-center gap-3 rounded-lg px-1 py-1 hover:bg-accent/50 transition-colors w-full text-left group-data-[collapsible=icon]:justify-center focus:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                  <Avatar className="h-9 w-9 border shrink-0">
+                    <AvatarFallback className="text-xs font-medium">
+                      {user?.name?.charAt(0).toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="flex-1 min-w-0 group-data-[collapsible=icon]:hidden">
+                    <p className="text-sm font-medium truncate leading-none">
+                      {user?.name || "-"}
+                    </p>
+                    <p className="text-xs text-muted-foreground truncate mt-1.5">
+                      {user?.email || "-"}
+                    </p>
+                  </div>
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-48">
+                <DropdownMenuItem
+                  onClick={logout}
+                  className="cursor-pointer text-destructive focus:text-destructive"
+                >
+                  <LogOut className="mr-2 h-4 w-4" />
+                  <span>Sign out</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </SidebarFooter>
+        </Sidebar>
+        <div
+          className={`absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-primary/20 transition-colors ${isCollapsed ? "hidden" : ""}`}
+          onMouseDown={() => {
+            if (isCollapsed) return;
+            setIsResizing(true);
+          }}
+          style={{ zIndex: 50 }}
+        />
+      </div>
+
+      <SidebarInset>
+        {isMobile && (
+          <div className="flex border-b h-14 items-center justify-between bg-background/95 px-2 backdrop-blur supports-[backdrop-filter]:backdrop-blur sticky top-0 z-40">
+            <div className="flex items-center gap-2">
+              <SidebarTrigger className="h-9 w-9 rounded-lg bg-background" />
+              <div className="flex items-center gap-3">
+                <div className="flex flex-col gap-1">
+                  <span className="tracking-tight text-foreground">
+                    {activeMenuItem?.label ?? "Menu"}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+        <main className="flex-1 p-4">{children}</main>
+      </SidebarInset>
+    </>
+  );
+}

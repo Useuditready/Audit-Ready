@@ -1,0 +1,2 @@
+ALTER TABLE `credentials` MODIFY COLUMN `category` enum('license','certification','training','background_check','sex_offender_registry','insurance','other') NOT NULL DEFAULT 'license';--> statement-breakpoint
+ALTER TABLE `verificationChecks` MODIFY COLUMN `source` enum('bacb','oig_leie','npi','sam_gov') NOT NULL;

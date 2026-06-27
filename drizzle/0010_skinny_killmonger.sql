@@ -1,0 +1,3 @@
+ALTER TABLE `credentials` MODIFY COLUMN `verificationStatus` enum('not_checked','verified','needs_review','not_found','manual_review_required') NOT NULL DEFAULT 'not_checked';--> statement-breakpoint
+ALTER TABLE `credentials` ADD `documentLocationType` enum('none','paper','google_drive','dropbox','sharepoint','hr_system','ehr_system','other') DEFAULT 'none';--> statement-breakpoint
+ALTER TABLE `credentials` ADD `documentLocationNote` text;

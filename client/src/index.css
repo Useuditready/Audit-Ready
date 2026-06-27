@@ -1,0 +1,245 @@
+/**
+ * AuditReady — Design System v6 "Digital Compliance Folder"
+ * ──────────────────────────────────────────────────────────
+ * Concept: A physical compliance folder brought to screen.
+ * Paper texture, ink stamps, folder tabs, ID cards, date fields.
+ *
+ * Palette:
+ *   Paper:       #F4F0E8  (warm off-white)
+ *   Ink:         #1A1A1A  (deep ink black)
+ *   Stamp red:   #C0392B  (expired / urgent — used sparingly)
+ *   Forest:      #3A4A2E  (verified / current)
+ *   Amber:       #8B6914  (expiring soon)
+ *   Rule:        #D6CEBC  (dividers, borders)
+ *   Tab:         #E8E2D4  (folder tab surface)
+ *   Tab active:  #F4F0E8  (active tab matches page)
+ *
+ * Typography:
+ *   Display:  DM Serif Display (premium headlines)
+ *   Body:     Plus Jakarta Sans (warm, readable SaaS body)
+ *   Metadata: JetBrains Mono (dates, IDs, codes)
+ */
+
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@theme inline {
+  --color-border: var(--border);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --radius-sm: 2px;
+  --radius-md: 4px;
+  --radius-lg: 6px;
+}
+
+@custom-variant dark (&:is(.dark *));
+
+/* ── Design Tokens ────────────────────────────────────────────────────────── */
+:root {
+  /* ── Paper palette ── */
+  --paper:        #FFFFFF;
+  --paper-dark:   #F5F7F5;
+  --paper-deeper: #EBF0EB;
+  --tab:          #F0F4F0;
+  --tab-active:   #FFFFFF;
+  --rule:         #E2E8E2;
+  --rule-dark:    #C8D4C8;
+
+  /* ── Ink palette ── */
+  --ink:          #0A0F0A;
+  --ink-mid:      #1E2A1E;
+  --ink-light:    #4A5C4A;
+  --ink-faint:    #7A8C7A;
+  --ink-ghost:    #B0C0B0;
+
+  /* ── Status colors (used sparingly) ── */
+  --stamp-red:    #DC2626;   /* expired / urgent */
+  --stamp-red-bg: #FEF2F2;
+  --forest:       #166534;   /* verified / current */
+  --forest-bg:    #DCFCE7;
+  --amber:        #D97706;   /* expiring soon */
+  --amber-bg:     #FEF3C7;
+
+  /* ── Typography ── */
+  --font-display: 'DM Serif Display', 'Georgia', serif;
+  --font-body:    'Plus Jakarta Sans', system-ui, sans-serif;
+  --font-meta:    'JetBrains Mono', 'Courier New', monospace;
+  --font-ui:      'Plus Jakarta Sans', system-ui, sans-serif;
+
+  /* ── Tailwind CSS variable bridge ── */
+  --background:              var(--paper);
+  --foreground:              var(--ink);
+  --card:                    var(--paper);
+  --card-foreground:         var(--ink);
+  --popover:                 var(--paper);
+  --popover-foreground:      var(--ink);
+  --primary:                 var(--ink);
+  --primary-foreground:      var(--paper);
+  --secondary:               var(--tab);
+  --secondary-foreground:    var(--ink-mid);
+  --muted:                   var(--paper-dark);
+  --muted-foreground:        var(--ink-light);
+  --accent:                  var(--forest);
+  --accent-foreground:       #fff;
+  --destructive:             var(--stamp-red);
+  --destructive-foreground:  #fff;
+  --border:                  var(--rule);
+  --input:                   var(--rule);
+  --ring:                    var(--ink-mid);
+  --radius:                  4px;
+
+  /* ── Sidebar (dark green brand palette) ── */
+  --sidebar:                 #0F2318;
+  --sidebar-foreground:      rgba(255,255,255,0.75);
+  --sidebar-primary:         #3A8C5C;
+  --sidebar-primary-foreground: #0F2318;
+  --sidebar-accent:          rgba(58,140,92,0.14);
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-border:          rgba(58,140,92,0.12);
+  --sidebar-ring:            #3A8C5C;
+
+  /* ── Charts ── */
+  --chart-1: var(--forest);
+  --chart-2: var(--amber);
+  --chart-3: var(--stamp-red);
+  --chart-4: var(--ink-light);
+  --chart-5: var(--rule-dark);
+}
+
+/* ── Base Reset ───────────────────────────────────────────────────────────── */
+@layer base {
+  *, *::before, *::after {
+    box-sizing: border-box;
+    border-color: var(--rule);
+  }
+
+  html {
+    font-size: 16px;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    font-family: var(--font-body);
+    background: var(--paper);
+    color: var(--ink);
+    line-height: 1.65;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-display);
+    font-weight: 700;
+    color: var(--ink);
+    letter-spacing: -0.02em;
+    line-height: 1.15;
+  }
+
+  p {
+    font-family: var(--font-body);
+    font-size: 1rem;
+    line-height: 1.7;
+    color: var(--ink-mid);
+  }
+
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]),
+  a[href],
+  select:not(:disabled) {
+    cursor: pointer;
+  }
+
+  ::-webkit-scrollbar { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track { background: var(--paper-dark); }
+  ::-webkit-scrollbar-thumb { background: var(--rule-dark); border-radius: 2px; }
+}
+
+/* ── Component Utilities ──────────────────────────────────────────────────── */
+@layer components {
+
+  /* Container */
+  .container {
+    width: 100%;
+    margin-left: auto;
+    margin-right: auto;
+    padding-left: 1.25rem;
+    padding-right: 1.25rem;
+    max-width: 1280px;
+  }
+  @media (min-width: 768px) {
+    .container { padding-left: 2rem; padding-right: 2rem; }
+  }
+
+  .flex { min-height: 0; min-width: 0; }
+
+  /* ── Section divider rule (used in app pages) ── */
+  .rule-h {
+    height: 1px;
+    background: var(--rule);
+    border: none;
+    margin: 0;
+  }
+
+  /* ── How It Works step column dividers (desktop only) ── */
+  /* No border on mobile — prevents vertical line bleeding through stacked layout */
+  .md-border-right {
+    border-right: none;
+  }
+  @media (min-width: 768px) {
+    .md-border-right {
+      border-right: 1px solid var(--rule);
+    }
+  }
+
+  /* Bottom separator between stacked steps on mobile */
+  .how-it-works-step-divider {
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--rule);
+  }
+  @media (min-width: 768px) {
+    .how-it-works-step-divider {
+      padding-bottom: 0;
+      border-bottom: none;
+    }
+  }
+
+  /* ── Fade-up entrance animations ── */
+  @media (prefers-reduced-motion: no-preference) {
+    .fade-up {
+      animation: fadeUp 0.45s cubic-bezier(0.23, 1, 0.32, 1) both;
+    }
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(12px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+  }
+}

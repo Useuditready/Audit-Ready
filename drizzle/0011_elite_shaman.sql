@@ -1,0 +1,42 @@
+CREATE TABLE `payerCredentialingStatuses` (
+	`id` int AUTO_INCREMENT NOT NULL,
+	`providerId` int NOT NULL,
+	`userId` int NOT NULL,
+	`payerName` enum('bcbs','aetna','cigna','uhc_optum','medicaid','tricare','other') NOT NULL,
+	`payerDisplayName` varchar(200),
+	`status` enum('not_started','submitted','in_review','approved','needs_update','expired') NOT NULL DEFAULT 'not_started',
+	`submittedAt` date,
+	`approvedAt` date,
+	`expiresAt` date,
+	`notes` text,
+	`createdAt` timestamp NOT NULL DEFAULT (now()),
+	`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
+	CONSTRAINT `payerCredentialingStatuses_id` PRIMARY KEY(`id`)
+);
+--> statement-breakpoint
+CREATE TABLE `providers` (
+	`id` int AUTO_INCREMENT NOT NULL,
+	`userId` int NOT NULL,
+	`firstName` varchar(100) NOT NULL,
+	`lastName` varchar(100) NOT NULL,
+	`role` varchar(150),
+	`npi` varchar(20),
+	`caqhId` varchar(50),
+	`licenseType` varchar(150),
+	`licenseNumber` varchar(100),
+	`licenseExpirationDate` date,
+	`malpracticeInsuranceExpiration` date,
+	`cprFirstAidExpiration` date,
+	`backgroundCheckDate` date,
+	`requiredTrainings` text,
+	`oigCheckDate` date,
+	`recredentialingDueDate` date,
+	`documentLocationType` enum('none','paper','google_drive','dropbox','sharepoint','hr_system','ehr_system','other') DEFAULT 'none',
+	`documentLocationNote` text,
+	`verifiedBy` varchar(255),
+	`verificationDate` timestamp,
+	`notes` text,
+	`createdAt` timestamp NOT NULL DEFAULT (now()),
+	`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
+	CONSTRAINT `providers_id` PRIMARY KEY(`id`)
+);

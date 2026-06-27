@@ -1,0 +1,15 @@
+User-agent: *
+Allow: /
+
+# Block admin and API routes
+Disallow: /admin
+Disallow: /api/
+Disallow: /dashboard
+Disallow: /staff
+Disallow: /credentials
+Disallow: /reports
+Disallow: /settings
+Disallow: /billing
+
+# Sitemap
+Sitemap: https://www.useauditready.com/sitemap.xml
