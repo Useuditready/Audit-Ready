@@ -101,6 +101,15 @@ export async function getUserByOpenId(openId: string) {
   return result.length > 0 ? result[0] : undefined;
 }
 
+export async function updateUserOpenId(userId: number, openId: string): Promise<void> {
+    const db = await getDb();
+    if (!db) {
+          console.warn("[Database] Cannot update user openId: database not available");
+          return;
+    }
+    await db.update(users).set({ openId } as any).where(eq(users.id, userId));
+}
+
 // ── Email Verification Helpers ───────────────────────────────
 
 export async function saveEmailVerificationToken(
