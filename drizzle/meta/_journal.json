@@ -225,6 +225,13 @@
       "when": 1782509692227,
       "tag": "0031_mean_ink",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "5",
+      "when": 1786129536382,
+      "tag": "0032_add_sessions_table",
+      "breakpoints": true
     }
   ]
 }
