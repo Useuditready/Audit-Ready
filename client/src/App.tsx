@@ -212,10 +212,10 @@ function Router() {
             <SubscriptionGate><AdminAuditLog /></SubscriptionGate>
           </Route>
           <Route path={"/admin/scheduled-jobs"}>
-            <AdminScheduledJobs />
+            <SubscriptionGate><AdminScheduledJobs /></SubscriptionGate>
           </Route>
           <Route path={"/admin/deletions"}>
-            <AdminDeletionQueue />
+            <SubscriptionGate><AdminDeletionQueue /></SubscriptionGate>
           </Route>
           <Route path={"/onboarding"}>
             <SubscriptionGate><Onboarding /></SubscriptionGate>
