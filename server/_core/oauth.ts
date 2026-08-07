@@ -1,4 +1,4 @@
-import { COOKIE_NAME, ONE_YEAR_MS } from "@shared/const";
+import { COOKIE_NAME, SESSION_HARD_CEILING_MS } from "@shared/const";
 import type { Express, Request, Response } from "express";
 import * as db from "../db";
 import { sendPilotActivationEmail, sendEmailVerificationEmail, sendAdminAgencySignupNotification } from "../email";
@@ -114,13 +114,21 @@ export function registerOAuthRoutes(app: Express) {
         role: "admin", // Phase 1: every account is an agency admin
       });
 
+      // Fetch the numeric user id so the session row can be tied to it —
+      // needed for server-side revocation and the 30-minute inactivity timeout.
+      const dbUser = await db.getUserByOpenId(userInfo.openId);
+      if (!dbUser) {
+        res.status(500).json({ error: "Failed to create user session" });
+        return;
+      }
+
       const sessionToken = await sdk.createSessionToken(userInfo.openId, {
         name: userInfo.name || "",
-        expiresInMs: ONE_YEAR_MS,
+        userId: dbUser.id,
       });
 
       const cookieOptions = getSessionCookieOptions(req);
-      res.cookie(COOKIE_NAME, sessionToken, { ...cookieOptions, maxAge: ONE_YEAR_MS });
+      res.cookie(COOKIE_NAME, sessionToken, { ...cookieOptions, maxAge: SESSION_HARD_CEILING_MS });
 
       // ── Auto-grant 14-day free pilot for new users ─────────
       if (isNewUser) {

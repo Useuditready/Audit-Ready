@@ -57,6 +57,26 @@ export const users = mysqlTable("users", {
 });
 
 /**
+ * Server-side session records backing the auth JWT.
+ * The JWT embeds this row's id (`sid`); this table is what makes it possible
+ * to actually revoke a session on logout and enforce a 30-minute inactivity
+ * timeout — neither is possible with a bare stateless JWT.
+ */
+export const sessions = mysqlTable("sessions", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  userId: int("userId").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  lastActivityAt: timestamp("lastActivityAt").defaultNow().notNull(),
+  expiresAt: timestamp("expiresAt").notNull(),
+  revokedAt: timestamp("revokedAt"),
+  userAgent: varchar("userAgent", { length: 500 }),
+  ipAddress: varchar("ipAddress", { length: 64 }),
+});
+export type Session = typeof sessions.$inferSelect;
+export type InsertSession = typeof sessions.$inferInsert;
+
+
+/**
  * Staff members belonging to an agency (user).
  */
 export const staff = mysqlTable("staff", {

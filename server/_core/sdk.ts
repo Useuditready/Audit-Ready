@@ -1,9 +1,10 @@
-import { AXIOS_TIMEOUT_MS, COOKIE_NAME, ONE_YEAR_MS } from "@shared/const";
+import { AXIOS_TIMEOUT_MS, COOKIE_NAME, SESSION_HARD_CEILING_MS, SESSION_IDLE_LIMIT_MS } from "@shared/const";
 import { ForbiddenError } from "@shared/_core/errors";
 import axios, { type AxiosInstance } from "axios";
 import { parse as parseCookieHeader } from "cookie";
 import type { Request } from "express";
 import { SignJWT, jwtVerify } from "jose";
+import crypto from "crypto";
 import type { User } from "../../drizzle/schema";
 import * as db from "../db";
 import { ENV } from "./env";
@@ -22,6 +23,7 @@ export type SessionPayload = {
   openId: string;
   appId: string;
   name: string;
+  sid?: string;
 };
 
 const EXCHANGE_TOKEN_PATH = `/webdev.v1.WebDevAuthPublicService/ExchangeToken`;
@@ -160,21 +162,36 @@ class SDKServer {
   }
 
   /**
-   * Create a session token for a Manus user openId
+   * Create a session token for a Manus user openId. When `userId` is
+   * provided, also creates a server-side session row so the session can be
+   * revoked on logout and expired after 30 minutes of inactivity.
    * @example
-   * const sessionToken = await sdk.createSessionToken(userInfo.openId);
+   * const sessionToken = await sdk.createSessionToken(userInfo.openId, { userId: user.id });
    */
   async createSessionToken(
     openId: string,
-    options: { expiresInMs?: number; name?: string } = {}
+    options: { expiresInMs?: number; name?: string; userId?: number } = {}
   ): Promise<string> {
+    const expiresInMs = options.expiresInMs ?? SESSION_HARD_CEILING_MS;
+    let sid: string | undefined;
+
+    if (options.userId != null) {
+      sid = crypto.randomUUID();
+      await db.createSession({
+        id: sid,
+        userId: options.userId,
+        expiresAt: new Date(Date.now() + expiresInMs),
+      });
+    }
+
     return this.signSession(
       {
         openId,
         appId: ENV.appId,
         name: options.name || "",
+        sid,
       },
-      options
+      { expiresInMs }
     );
   }
 
@@ -183,7 +200,7 @@ class SDKServer {
     options: { expiresInMs?: number } = {}
   ): Promise<string> {
     const issuedAt = Date.now();
-    const expiresInMs = options.expiresInMs ?? ONE_YEAR_MS;
+    const expiresInMs = options.expiresInMs ?? SESSION_HARD_CEILING_MS;
     const expirationSeconds = Math.floor((issuedAt + expiresInMs) / 1000);
     const secretKey = this.getSessionSecret();
 
@@ -191,6 +208,7 @@ class SDKServer {
       openId: payload.openId,
       appId: payload.appId,
       name: payload.name,
+      ...(payload.sid ? { sid: payload.sid } : {}),
     })
       .setProtectedHeader({ alg: "HS256", typ: "JWT" })
       .setExpirationTime(expirationSeconds)
@@ -199,7 +217,7 @@ class SDKServer {
 
   async verifySession(
     cookieValue: string | undefined | null
-  ): Promise<{ openId: string; appId: string; name: string } | null> {
+  ): Promise<{ openId: string; appId: string; name: string; sid?: string } | null> {
     if (!cookieValue) {
       console.warn("[Auth] Missing session cookie");
       return null;
@@ -210,7 +228,7 @@ class SDKServer {
       const { payload } = await jwtVerify(cookieValue, secretKey, {
         algorithms: ["HS256"],
       });
-      const { openId, appId, name } = payload as Record<string, unknown>;
+      const { openId, appId, name, sid } = payload as Record<string, unknown>;
 
       if (
         !isNonEmptyString(openId) ||
@@ -225,10 +243,25 @@ class SDKServer {
         openId,
         appId,
         name,
+        sid: isNonEmptyString(sid) ? sid : undefined,
       };
     } catch (error) {
       console.warn("[Auth] Session verification failed", String(error));
       return null;
+    }
+  }
+
+  /**
+   * Revoke the server-side session tied to the cookie on the given request,
+   * if any. Called from logout — safe to call even if the cookie is
+   * missing, invalid, or belongs to a pre-migration token with no sid.
+   */
+  async revokeSessionFromRequest(req: Request): Promise<void> {
+    const cookies = this.parseCookies(req.headers.cookie);
+    const sessionCookie = cookies.get(COOKIE_NAME);
+    const session = await this.verifySession(sessionCookie);
+    if (session?.sid) {
+      await db.revokeSession(session.sid);
     }
   }
 
@@ -273,6 +306,26 @@ class SDKServer {
         throw ForbiddenError("Cron session missing task_uid");
       }
       return buildCronUser(userInfo);
+    }
+
+    // Server-side session check — only applies to tokens issued after this
+    // was added (sid is optional so older/foreign tokens keep working off
+    // the JWT signature alone until they naturally expire and get reissued
+    // on next login).
+    if (session.sid) {
+      const dbSession = await db.getSessionById(session.sid);
+      if (!dbSession || dbSession.revokedAt || dbSession.expiresAt.getTime() < Date.now()) {
+        throw ForbiddenError("Session expired or revoked");
+      }
+      const idleMs = Date.now() - dbSession.lastActivityAt.getTime();
+      if (idleMs > SESSION_IDLE_LIMIT_MS) {
+        await db.revokeSession(session.sid);
+        throw ForbiddenError("Session expired due to inactivity");
+      }
+      // Throttle — only write back activity if it's been >60s since the last update.
+      if (idleMs > 60_000) {
+        await db.touchSessionActivity(session.sid);
+      }
     }
 
     const sessionUserId = session.openId;
