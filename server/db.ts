@@ -1826,3 +1826,34 @@ export async function getLatestVerificationCheckPerStaff(
   }
   return result;
 }
+
+// ── Server-side Sessions ──────────────────────────────────────
+// Backs the auth JWT with a real DB row so a session can actually be
+// revoked on logout and expired after 30 minutes of inactivity — neither
+// is possible with a bare stateless JWT. See server/_core/sdk.ts.
+import { sessions, InsertSession, Session } from "../drizzle/schema";
+
+export async function createSession(data: InsertSession): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  await db.insert(sessions).values(data);
+}
+
+export async function getSessionById(id: string): Promise<Session | undefined> {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(sessions).where(eq(sessions.id, id)).limit(1);
+  return result.length > 0 ? result[0] : undefined;
+}
+
+export async function touchSessionActivity(id: string): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(sessions).set({ lastActivityAt: new Date() } as any).where(eq(sessions.id, id));
+}
+
+export async function revokeSession(id: string): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(sessions).set({ revokedAt: new Date() } as any).where(eq(sessions.id, id));
+}
