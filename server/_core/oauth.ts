@@ -86,11 +86,24 @@ export function registerOAuthRoutes(app: Express) {
       }
 
       // Check if this user already exists in our DB
-      const existingUser = await db.getUserByOpenId(userInfo.openId);
-      const isNewUser = !existingUser;
+      let existingUser = await db.getUserByOpenId(userInfo.openId);
       const userEmail = userInfo.email ?? null;
+      
+      // Fallback: legacy accounts may have a different openId format (e.g.
+      // Manus-issued opaque IDs vs. the current google:<id> format). If we
+      // don't find a match by openId but do find one by email, treat that
+      // as the same user and self-heal their openId so future logins
+      // match directly instead of creating a duplicate "pending" account.
+      if (!existingUser && userEmail) {
+        const userByEmail = await db.getUserByEmail(userEmail);
+        if (userByEmail) {
+          await db.updateUserOpenId(userByEmail.id, userInfo.openId);
+          existingUser = { ...userByEmail, openId: userInfo.openId };
+        }
+      }
+      
+      const isNewUser = !existingUser;
       const emailDomain = getEmailDomain(userEmail);
-
       // ── Single-admin-per-agency enforcement ──────────────────
       // Only enforce for non-personal email domains (agency emails)
       if (isNewUser && emailDomain && !PERSONAL_DOMAINS.has(emailDomain)) {
