@@ -38,6 +38,7 @@ async function findAvailablePort(startPort: number = 3000): Promise<number> {
 
 async function startServer() {
   const app = express();
+  app.set("trust proxy", 1); // Required for correct req.protocol/req.secure detection behind a reverse proxy
   const server = createServer(app);
 
   // ── Security headers via Helmet.js ──────────────────────────────────────────
